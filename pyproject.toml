@@ -1,0 +1,13 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+[project]
+name = "handwritten-number-reader"
+version = "1.0.0"
+description = "Handwritten digit recognition with calibrated prediction sets and browser inference"
+requires-python = ">=3.11"
+dependencies = ["numpy>=1.26,<3", "scikit-learn>=1.5,<2"]
+[project.scripts]
+number-reader = "numberreader.cli:main"
+[tool.setuptools.packages.find]
+include = ["numberreader*"]
