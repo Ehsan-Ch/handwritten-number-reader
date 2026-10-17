@@ -1,4 +1,5 @@
 import json
+import copy
 import tempfile
 import unittest
 from pathlib import Path
@@ -62,6 +63,19 @@ class ModelTests(unittest.TestCase):
 
     def test_invalid_version_rejected(self):
         with self.assertRaises(ValueError):predict({'version':2},self.X)
+
+    def test_corrupt_models_never_return_predictions(self):
+        valid={'version':1,'classes':list(range(10)),
+               'weights':[np.zeros((64,10)).tolist()], 'biases':[[0]*10]}
+        bad=[]
+        for key,value in [('biases',[]),('weights',[]),('weights',[np.zeros((64,9)).tolist()]),
+                          ('biases',[[0]]),('weights',[np.full((64,10),np.nan).tolist()]),
+                          ('biases',[[float('inf')]*10])]:
+            model=copy.deepcopy(valid);model[key]=value;bad.append(model)
+        model=copy.deepcopy(valid);model['weights'].append(np.zeros((10,10)).tolist());bad.append(model)
+        for model in bad:
+            with self.subTest(model=str(model)[:80]), self.assertRaises(ValueError):
+                predict(model,self.X)
 
 class CalibrationTests(unittest.TestCase):
     def test_finite_sample_rank(self):

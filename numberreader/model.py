@@ -19,12 +19,32 @@ def export(estimator, name):
             'weights': [w.tolist() for w in weights], 'biases': [b.tolist() for b in biases]}
 
 def predict(model, X):
-    if model['version'] != 1 or model['classes'] != list(range(10)):
+    if not isinstance(model, dict) or model.get('version') != 1 or model.get('classes') != list(range(10)):
         raise ValueError('Unsupported model schema')
+    weights, biases = model.get('weights'), model.get('biases')
+    if not isinstance(weights, list) or not isinstance(biases, list) or not weights or len(weights) != len(biases):
+        raise ValueError('Expected matching nonempty weight and bias layers')
+    layers = []
+    inputs = 64
+    for weights_raw, bias_raw in zip(weights, biases):
+        try:
+            w, b = np.asarray(weights_raw, dtype=float), np.asarray(bias_raw, dtype=float)
+        except (TypeError, ValueError) as error:
+            raise ValueError('Invalid model parameters') from error
+        if (w.ndim != 2 or w.shape[0] != inputs or w.shape[1] == 0
+                or b.shape != (w.shape[1],) or not np.isfinite(w).all() or not np.isfinite(b).all()):
+            raise ValueError('Invalid model layer dimensions or nonfinite parameters')
+        inputs = w.shape[1]
+        layers.append((w, b))
+    if inputs != 10:
+        raise ValueError('Expected ten digit outputs')
     z = validate_pixels(X)
-    for index, (weights,bias) in enumerate(zip(model['weights'],model['biases'])):
-        z = z @ np.asarray(weights) + np.asarray(bias)
-        if index < len(model['weights'])-1: z = np.maximum(z,0)
+    for index, (weights,bias) in enumerate(layers):
+        with np.errstate(over='ignore', invalid='ignore'):
+            z = z @ weights + bias
+        if not np.isfinite(z).all():
+            raise ValueError('Model produced nonfinite activations')
+        if index < len(layers)-1: z = np.maximum(z,0)
     z = z-z.max(axis=1,keepdims=True)
     e = np.exp(z)
     return e/e.sum(axis=1,keepdims=True)
